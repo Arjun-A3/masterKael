@@ -1,41 +1,27 @@
 # master kael
 
-A small chat for working one LeetCode problem at a time. master kael keeps a brief on that problem — the statement, what you have established, your current idea, and the next question — and the conversation stays there until you reach an answer. Ask for the approaches and he will lay out brute force, the improvement, and the optimal version, each with its cost, then return to the step you were on.
+> The right question is the lesson.
 
-## Host it as one Next.js app
+Bring one LeetCode problem. master kael talks it through until the answer is in your hands.
 
-Use this single app on **Vercel**. The pages and the API routes are the whole product. MongoDB Atlas holds Google sessions and lesson transcripts, so there is no second server to run.
+He keeps a brief so you never repeat yourself: the statement, what you have already established, the idea on the table, and the question still waiting. Name a different problem and he sends you to a fresh lesson, then asks that same question again.
 
-Vercel is the simpler default. Render can run the same app too: `npm run build`, then `npm start`.
+Ask for the approaches and he lays them out in order — brute force, the improvement, and the optimal version — each with its cost. Then he walks you back to the step you were on.
 
-## What you will paste in
+## How a lesson moves
 
-| Variable | What it is |
+| | |
 | --- | --- |
-| `MONGODB_URI` | Atlas connection string |
-| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | OAuth **web client**, not a service account |
-| `AUTH_SECRET` | Random string, `openssl rand -base64 32` |
-| `GROQ_API_KEY` | Free key from [console.groq.com](https://console.groq.com) |
-| `GROQ_MODEL` | Optional. Defaults to `openai/gpt-oss-20b` |
+| **Understand** | He locks the problem in one sentence and asks one question. |
+| **Approach** | Your idea first. When it is real, he names the pattern and what it costs. |
+| **Example** | One small input, walked by hand. A miss comes back as a counterexample. |
+| **Code** | A short solution in your language. Python, if you never picked one. |
+| **Check** | The edge that breaks it: empty, duplicates, negatives, a single element. |
+| **Solved** | Complexity in one line. He stops quizzing. |
 
-A Google **service account** JSON (`client_email`, `private_key`) cannot sign a person in. In Google Cloud Console create an OAuth client:
+Stuck? You get one hint, then the same question. Right fragment? He says which part holds, and only then asks the next thing.
 
-1. APIs & Services → OAuth consent screen. External is fine. Add your Gmail as a test user while the app is in testing.
-2. Credentials → Create credentials → OAuth client ID → **Web application**.
-3. Authorized redirect URIs:
-   - `http://localhost:3000/api/auth/callback/google`
-   - `https://<your-domain>/api/auth/callback/google`
-
-Lessons call Groq's chat API. The default model is `openai/gpt-oss-20b`, an open-weight model on Groq's free tier. The free tier is rate limited to about 30 requests a minute and 1,000 a day, which is enough for one person working a problem. Set `GROQ_MODEL` to `openai/gpt-oss-120b` if you want a stronger reply on the same key.
-
-```bash
-GROQ_API_KEY=gsk_...
-GROQ_MODEL=openai/gpt-oss-20b
-```
-
-On Atlas, allow network access from anywhere (`0.0.0.0/0`) if you deploy to Vercel. Serverless IPs change.
-
-## Local
+## Sit down
 
 ```bash
 cp .env.example .env.local
@@ -43,10 +29,29 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`, sign in with Google, and start a lesson.
+Open [http://localhost:3000](http://localhost:3000), sign in with Google, and name a problem.
 
-## Vercel
+## What you paste in
 
-Import the repo, set the env vars from `.env.example`, and set `AUTH_URL` to the production URL (for example `https://masterkael.vercel.app`). `trustHost` is already on, so preview URLs work once Google knows their redirect URI.
+| Variable | What it is |
+| --- | --- |
+| `MONGODB_URI` | Atlas connection string. Your lessons live here. |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | OAuth **web client**, not a service account |
+| `AUTH_SECRET` | Random string. `openssl rand -base64 32` |
+| `GROQ_API_KEY` | Free key from [console.groq.com](https://console.groq.com) |
+| `GROQ_MODEL` | Optional. Defaults to `openai/gpt-oss-20b` |
 
-Sessions use Auth.js with the MongoDB adapter (`strategy: "database"`), so login state lives in the `sessions` collection. Each problem is a document in `conversations` with a `question` brief, and the back-and-forth lives in `messages`. Both are scoped to the signed-in user.
+A Google service-account JSON (`client_email`, `private_key`) cannot sign a person in. In Google Cloud Console, create an OAuth client:
+
+1. APIs & Services → OAuth consent screen. External is fine. Add your Gmail as a test user while the app is in testing.
+2. Credentials → Create credentials → OAuth client ID → **Web application**.
+3. Authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
+
+Lessons call Groq. The default model is `openai/gpt-oss-20b` on the free tier, about 30 requests a minute and 1,000 a day — enough for one person and one problem. Set `GROQ_MODEL` to `openai/gpt-oss-120b` when you want a sharper reply on the same key.
+
+```bash
+GROQ_API_KEY=gsk_...
+GROQ_MODEL=openai/gpt-oss-20b
+```
+
+Sign-in is stored with Auth.js and the MongoDB adapter. Each problem is its own document: a `question` brief, and the back-and-forth in `messages`. Both belong to the signed-in user.
