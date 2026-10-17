@@ -1,6 +1,10 @@
+<div align="center">
+
 # master kael
 
-> The right question is the lesson.
+The right question is the lesson.
+
+</div>
 
 Bring one LeetCode problem. master kael talks it through until the answer is in your hands.
 
