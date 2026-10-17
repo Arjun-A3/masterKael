@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SignOutButton } from "@/components/auth-pending";
 import { ActivityHeatmap } from "@/components/activity-heatmap";
 import { ConfirmModal } from "@/components/confirm-modal";
+import { GuideModal, guideStorageKey } from "@/components/guide-modal";
 import { Loader } from "@/components/loader";
 import { MessageBody } from "@/components/message-body";
 import { ProblemDock } from "@/components/problem-dock";
@@ -29,6 +30,7 @@ type ChatMessage = {
 };
 
 type User = {
+  id: string;
   name?: string | null;
   email?: string | null;
   image?: string | null;
@@ -122,6 +124,7 @@ export function ChatApp({
   const [navOpen, setNavOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Lesson | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<LeetCodeHit[]>([]);
   const [searching, setSearching] = useState(false);
@@ -168,6 +171,23 @@ export function ChatApp({
     void loadList();
     void loadActivity();
   }, [loadList, loadActivity]);
+
+  useEffect(() => {
+    try {
+      if (!window.localStorage.getItem(guideStorageKey(user.id))) setGuideOpen(true);
+    } catch {
+      setGuideOpen(true);
+    }
+  }, [user.id]);
+
+  const closeGuide = useCallback(() => {
+    try {
+      window.localStorage.setItem(guideStorageKey(user.id), "1");
+    } catch {
+      // Private browsing can block storage. Closing still dismisses this visit.
+    }
+    setGuideOpen(false);
+  }, [user.id]);
 
   useEffect(() => {
     const root = appRef.current;
@@ -640,7 +660,7 @@ export function ChatApp({
             <span />
             <span />
           </button>
-          <div>
+          <div className="stage-title">
             <p className="eyebrow">
               {question ? STAGE_LABEL[question.stage] : "The archive"}
             </p>
@@ -650,20 +670,41 @@ export function ChatApp({
                 : "master kael"}
             </h1>
           </div>
-          {question?.title ? (
+          <div className="stage-actions">
+            {question?.title ? (
+              <button
+                type="button"
+                className="sheet-toggle"
+                aria-expanded={sheetOpen}
+                aria-controls="problem-sheet"
+                onClick={() => {
+                  setNavOpen(false);
+                  setSheetOpen((current) => !current);
+                }}
+              >
+                {question.number || "Problem"}
+              </button>
+            ) : null}
             <button
               type="button"
-              className="sheet-toggle"
-              aria-expanded={sheetOpen}
-              aria-controls="problem-sheet"
-              onClick={() => {
-                setNavOpen(false);
-                setSheetOpen((current) => !current);
-              }}
+              className="info"
+              aria-label="How this works"
+              title="How this works"
+              onClick={() => setGuideOpen(true)}
             >
-              {question.number || "Problem"}
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <path
+                  d="M12 11.2V16.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+                <circle cx="12" cy="8.1" r="0.9" fill="currentColor" />
+              </svg>
             </button>
-          ) : null}
+          </div>
         </header>
 
         {question && hasDossier(question) ? <QuestionDossier question={question} /> : null}
@@ -828,6 +869,7 @@ export function ChatApp({
           label={`Removing ${pendingDelete?.title ?? "the problem"}…`}
         />
       ) : null}
+      {guideOpen ? <GuideModal onClose={closeGuide} /> : null}
       <ProblemDock
         question={question}
         loading={statementLoading}
