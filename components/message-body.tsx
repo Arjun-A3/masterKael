@@ -22,7 +22,14 @@ function splitFences(text: string): Block[] {
     });
     last = index + match[0].length;
   }
-  if (last < text.length) parts.push({ type: "text", value: text.slice(last) });
+  const rest = text.slice(last);
+  const open = /```([\w+-]*)\n?([\s\S]*)$/.exec(rest);
+  if (open && open.index !== undefined) {
+    if (open.index > 0) parts.push({ type: "text", value: rest.slice(0, open.index) });
+    parts.push({ type: "code", lang: open[1] || "", value: open[2] });
+  } else if (rest) {
+    parts.push({ type: "text", value: rest });
+  }
   if (parts.length === 0) parts.push({ type: "text", value: text });
   return parts;
 }
@@ -147,9 +154,9 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
-export function MessageBody({ text }: { text: string }) {
+export function MessageBody({ text, streaming = false }: { text: string; streaming?: boolean }) {
   return (
-    <div className="prose">
+    <div className={streaming ? "prose streaming" : "prose"}>
       {splitFences(text).map((block, index) =>
         block.type === "code" ? (
           <figure key={index} className="code">

@@ -66,6 +66,37 @@ function groupLessons(lessons: Lesson[]) {
   return groups;
 }
 
+type RevealState = {
+  id: string;
+  target: string;
+  shown: string;
+  live: boolean;
+  frame: number;
+  last: number;
+  settled: boolean;
+};
+
+function freshReveal(id = ""): RevealState {
+  return {
+    id,
+    target: "",
+    shown: "",
+    live: Boolean(id),
+    frame: 0,
+    last: 0,
+    settled: false,
+  };
+}
+
+function advanceReveal(shown: string, target: string, elapsedMs: number) {
+  if (shown.length >= target.length) return shown;
+  const rest = target.slice(shown.length);
+  const budget = Math.min(6, Math.max(1, Math.round((Math.max(elapsedMs, 16) / 1000) * 140)));
+  const lineBreak = rest.indexOf("\n");
+  const step = lineBreak === -1 ? budget : Math.min(budget, lineBreak + 1);
+  return shown + rest.slice(0, step);
+}
+
 export function ChatApp({
   user,
   logout,
@@ -93,6 +124,8 @@ export function ChatApp({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const revealRef = useRef<RevealState>(freshReveal());
+  const pumpRef = useRef<() => void>(() => {});
 
   const loadList = useCallback(async () => {
     const response = await fetch("/api/conversations");
@@ -125,6 +158,58 @@ export function ChatApp({
     void loadList();
     void loadActivity();
   }, [loadList, loadActivity]);
+
+  useEffect(() => {
+    return () => {
+      if (revealRef.current.frame) cancelAnimationFrame(revealRef.current.frame);
+    };
+  }, []);
+
+  function settleReveal() {
+    const state = revealRef.current;
+    if (state.settled) return;
+    state.settled = true;
+    if (state.frame) cancelAnimationFrame(state.frame);
+    state.frame = 0;
+    setSending(false);
+    inputRef.current?.focus();
+  }
+
+  pumpRef.current = () => {
+    const state = revealRef.current;
+    if (state.settled || !state.id) return;
+    const now = performance.now();
+    const elapsed = state.last ? now - state.last : 16;
+    state.last = now;
+
+    if (state.shown.length >= state.target.length) {
+      state.frame = 0;
+      if (!state.live) settleReveal();
+      return;
+    }
+
+    const instant = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const next = instant ? state.target : advanceReveal(state.shown, state.target, elapsed);
+    state.shown = next;
+    const id = state.id;
+    setMessages((current) => {
+      if (revealRef.current.id !== id) return current;
+      return current.map((item) => (item.id === id ? { ...item, content: next } : item));
+    });
+    state.frame = requestAnimationFrame(() => pumpRef.current());
+  };
+
+  function armReveal(id: string) {
+    if (revealRef.current.frame) cancelAnimationFrame(revealRef.current.frame);
+    revealRef.current = freshReveal(id);
+  }
+
+  function pushReveal(token: string) {
+    revealRef.current.target += token;
+    if (!revealRef.current.frame) {
+      revealRef.current.frame = requestAnimationFrame(() => pumpRef.current());
+    }
+  }
 
   useEffect(() => {
     if (question?.title) setSheetOpen(true);
@@ -292,6 +377,7 @@ export function ChatApp({
     setError(null);
     setSending(true);
     stickRef.current = true;
+    armReveal(assistantMessage.id);
     setMessages((current) => [...current, userMessage, assistantMessage]);
 
     let assistantText = "";
@@ -358,12 +444,7 @@ export function ChatApp({
           }
           if (payload.token) {
             assistantText += payload.token;
-            const snapshot = assistantText;
-            setMessages((current) =>
-              current.map((item) =>
-                item.id === assistantMessage.id ? { ...item, content: snapshot } : item,
-              ),
-            );
+            pushReveal(payload.token);
           }
           if (payload.error) throw new Error(payload.error);
         }
@@ -377,6 +458,8 @@ export function ChatApp({
     } catch (cause) {
       const detail = cause instanceof Error ? cause.message : "master kael could not answer.";
       if (!assistantText.trim()) {
+        if (revealRef.current.frame) cancelAnimationFrame(revealRef.current.frame);
+        revealRef.current = freshReveal();
         setMessages((current) =>
           current.filter(
             (item) => item.id !== userMessage.id && item.id !== assistantMessage.id,
@@ -394,8 +477,10 @@ export function ChatApp({
         void loadActivity();
       }
     } finally {
-      setSending(false);
-      inputRef.current?.focus();
+      const state = revealRef.current;
+      state.live = false;
+      if (!state.id || state.shown.length >= state.target.length) settleReveal();
+      else if (!state.frame) state.frame = requestAnimationFrame(() => pumpRef.current());
     }
   }
 
@@ -588,11 +673,10 @@ export function ChatApp({
                   {message.role === "user" ? user.name || "You" : "master kael"}
                 </p>
                 {message.content ? (
-                  <MessageBody text={message.content} />
+                  <MessageBody text={message.content} streaming={streaming} />
                 ) : streaming ? (
                   <p className="waiting">Considering the problem…</p>
                 ) : null}
-                {streaming && message.content ? <span className="caret" /> : null}
               </article>
             );
           })}

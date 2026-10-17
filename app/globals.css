@@ -742,10 +742,17 @@ a { color: inherit; text-decoration: none; }
 
 .waiting { color: var(--muted); }
 
-.caret {
+.prose.streaming > p:last-child::after,
+.prose.streaming > h3:last-child::after,
+.prose.streaming > h4:last-child::after,
+.prose.streaming > h5:last-child::after,
+.prose.streaming > ul:last-child > li:last-child::after,
+.prose.streaming > ol:last-child > li:last-child::after,
+.prose.streaming > figure:last-child pre code::after {
+  content: "";
   display: inline-block;
   width: 0.55rem;
-  height: 1rem;
+  height: 1em;
   margin-left: 0.15rem;
   vertical-align: text-bottom;
   background: var(--gold);
