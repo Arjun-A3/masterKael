@@ -29,6 +29,20 @@ type ChatMessage = {
   content: string;
 };
 
+class ReplyError extends Error {
+  readonly code?: string;
+
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = "ReplyError";
+    this.code = code;
+  }
+}
+
+function replyError(message: string, code?: string): ReplyError {
+  return new ReplyError(message, code);
+}
+
 type User = {
   id: string;
   name?: string | null;
@@ -121,6 +135,7 @@ export function ChatApp({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [navOpen, setNavOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Lesson | null>(null);
@@ -325,12 +340,23 @@ export function ChatApp({
   }
 
   const busy = sending || opening || deleting;
+  const limitNotice = errorCode === "rate_limit" || errorCode === "too_large";
+
+  function clearError() {
+    setError(null);
+    setErrorCode(null);
+  }
+
+  function showError(message: string, code?: string) {
+    setError(message);
+    setErrorCode(code ?? null);
+  }
 
   function resetConversation() {
     setConversationId(null);
     setMessages([]);
     setQuestion(null);
-    setError(null);
+    clearError();
     setNavOpen(false);
     inputRef.current?.focus();
   }
@@ -346,7 +372,7 @@ export function ChatApp({
       return;
     }
     setOpening(true);
-    setError(null);
+    clearError();
     setNavOpen(false);
     setConversationId(id);
     setQuestion(null);
@@ -366,7 +392,7 @@ export function ChatApp({
       setQuestion(data.question);
       stickRef.current = true;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not open that problem.");
+      showError(cause instanceof Error ? cause.message : "Could not open that problem.");
     } finally {
       setOpening(false);
     }
@@ -448,7 +474,7 @@ export function ChatApp({
     };
 
     setInput("");
-    setError(null);
+    clearError();
     setSending(true);
     stickRef.current = true;
     armReveal(assistantMessage.id);
@@ -474,8 +500,8 @@ export function ChatApp({
       }
 
       if (!response.ok || !response.body) {
-        const data = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error || "master kael could not answer.");
+        const data = (await response.json().catch(() => ({}))) as { error?: string; code?: string };
+        throw replyError(data.error || "master kael could not answer.", data.code);
       }
 
       const reader = response.body.getReader();
@@ -497,6 +523,7 @@ export function ChatApp({
             token?: string;
             session?: QuestionSession;
             error?: string;
+            code?: string;
             done?: boolean;
           };
           if (payload.conversationId) {
@@ -520,7 +547,7 @@ export function ChatApp({
             assistantText += payload.token;
             pushReveal(payload.token);
           }
-          if (payload.error) throw new Error(payload.error);
+          if (payload.error) throw replyError(payload.error, payload.code);
         }
       }
 
@@ -531,6 +558,7 @@ export function ChatApp({
       void loadActivity();
     } catch (cause) {
       const detail = cause instanceof Error ? cause.message : "master kael could not answer.";
+      const code = cause instanceof ReplyError ? cause.code : undefined;
       if (!assistantText.trim()) {
         if (revealRef.current.frame) cancelAnimationFrame(revealRef.current.frame);
         revealRef.current = freshReveal();
@@ -545,7 +573,7 @@ export function ChatApp({
           setQuestion(null);
         } else setConversationId(priorId);
       }
-      setError(detail);
+      showError(detail, code);
       if (nextId && assistantText.trim()) {
         void loadList();
         void loadActivity();
@@ -813,7 +841,20 @@ export function ChatApp({
             void send(input);
           }}
         >
-          {error ? <p className="error">{error}</p> : null}
+          {error ? (
+            limitNotice ? (
+              <div className="limit-notice" role="alert">
+                <p className="limit-title">
+                  {errorCode === "too_large" ? "Message too large" : "API limit reached"}
+                </p>
+                <p>{error}</p>
+              </div>
+            ) : (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )
+          ) : null}
           <label className="sr-only" htmlFor="prompt">
             Message master kael
           </label>

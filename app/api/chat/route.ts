@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 import { isTitleSlug, loadLeetCodeProblem } from "@/lib/leetcode";
-import { modelConfigError, streamReply, type ChatTurn } from "@/lib/llm";
+import { LlmError, modelConfigError, streamReply, type ChatTurn } from "@/lib/llm";
 import { createSessionSplitter, lessonBrief, lessonTitle, parseQuestionUpdate, type QuestionSession } from "@/lib/question";
 import { requireUser } from "@/lib/session";
 import {
@@ -19,6 +19,13 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const MAX_MESSAGE = 8000;
+
+function failureEvent(error: unknown): { error: string; code?: string } {
+  if (error instanceof LlmError) return { error: error.message, code: error.code };
+  return {
+    error: error instanceof Error ? error.message : "The model could not answer.",
+  };
+}
 
 export async function POST(request: Request) {
   const gate = await requireUser();
@@ -170,10 +177,8 @@ export async function POST(request: Request) {
         }
 
         if (assistantSaved) {
-          const detail =
-            error instanceof Error ? error.message : "The model could not answer.";
           try {
-            send({ error: detail });
+            send(failureEvent(error));
           } catch {
             // The client already went away.
           }
@@ -195,10 +200,8 @@ export async function POST(request: Request) {
           }
         }
 
-        const detail =
-          error instanceof Error ? error.message : "The model could not answer.";
         try {
-          send({ error: detail });
+          send(failureEvent(error));
         } catch {
           // The client already went away.
         }

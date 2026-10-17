@@ -1,4 +1,7 @@
+import { llmFailure } from "@/lib/llm-limit";
 import { MASTER_PROMPT } from "@/lib/prompts";
+
+export { LlmError } from "@/lib/llm-limit";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -65,14 +68,13 @@ export async function* streamReply(
   });
 
   if (!response.ok) {
-    const detail = await safeError(response);
-    if (response.status === 401 || response.status === 403) {
-      throw new Error(`Groq rejected the API key. Check GROQ_API_KEY. ${detail}`.trim());
-    }
-    if (response.status === 429) {
-      throw new Error(detail || "Groq is rate limiting this key. Wait a moment and send that again.");
-    }
-    throw new Error(detail || `Groq returned ${response.status}.`);
+    const failure = await readGroqError(response);
+    throw llmFailure({
+      status: response.status,
+      message: failure.message,
+      code: failure.code,
+      headers: response.headers,
+    });
   }
 
   const contentType = response.headers.get("content-type") ?? "";
@@ -122,11 +124,15 @@ function tokenFromLine(line: string): string | undefined {
   if (!data || data === "[DONE]") return;
   try {
     const json = JSON.parse(data) as {
-      error?: { message?: string };
+      error?: { message?: string; code?: string };
       choices?: { delta?: { content?: string | null } }[];
     };
-    if (json.error?.message) {
-      throw new Error(json.error.message);
+    if (json.error?.message || json.error?.code === "rate_limit_exceeded") {
+      throw llmFailure({
+        status: 0,
+        message: json.error.message ?? "",
+        code: json.error.code,
+      });
     }
     const content = json.choices?.[0]?.delta?.content;
     return typeof content === "string" ? content : undefined;
@@ -136,15 +142,14 @@ function tokenFromLine(line: string): string | undefined {
   }
 }
 
-async function safeError(response: Response): Promise<string> {
+async function readGroqError(response: Response): Promise<{ message: string; code?: string }> {
   try {
     const json = (await response.json()) as {
-      error?: { message?: string } | string;
+      error?: { message?: string; code?: string } | string;
     };
-    if (typeof json.error === "string") return json.error;
-    if (json.error?.message) return json.error.message;
+    if (typeof json.error === "string") return { message: json.error };
+    return { message: json.error?.message ?? "", code: json.error?.code };
   } catch {
-    return "";
+    return { message: "" };
   }
-  return "";
 }
