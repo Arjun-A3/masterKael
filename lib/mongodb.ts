@@ -29,6 +29,7 @@ export async function getDb(): Promise<Db> {
     indexesPromise = Promise.all([
       db.collection("conversations").createIndex({ userId: 1, updatedAt: -1 }),
       db.collection("messages").createIndex({ conversationId: 1, createdAt: 1 }),
+      db.collection("messages").createIndex({ userId: 1, role: 1, createdAt: 1 }),
     ])
       .then(() => undefined)
       .catch((error) => {

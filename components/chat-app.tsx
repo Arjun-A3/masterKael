@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityHeatmap } from "@/components/activity-heatmap";
 import { ConfirmModal } from "@/components/confirm-modal";
 import { MessageBody } from "@/components/message-body";
 import { ProblemDock } from "@/components/problem-dock";
@@ -11,6 +12,13 @@ type Lesson = {
   title: string;
   updatedAt: string;
 };
+
+type ActivityDay = {
+  date: string;
+  count: number;
+};
+
+const EMPTY_ACTIVITY: ActivityDay[] = [];
 
 type ChatMessage = {
   id: string;
@@ -66,6 +74,8 @@ export function ChatApp({
   logout: () => Promise<void>;
 }) {
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [activity, setActivity] = useState<ActivityDay[] | null>(null);
+  const [activityFailed, setActivityFailed] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState<QuestionSession | null>(null);
@@ -95,9 +105,26 @@ export function ChatApp({
     setLessons(data.conversations);
   }, []);
 
+  const loadActivity = useCallback(async () => {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const response = await fetch(`/api/activity?tz=${encodeURIComponent(tz)}`);
+    if (response.status === 401) {
+      window.location.href = "/";
+      return;
+    }
+    if (!response.ok) {
+      setActivityFailed(true);
+      return;
+    }
+    const data = (await response.json()) as { days?: ActivityDay[] };
+    setActivityFailed(false);
+    setActivity(data.days ?? []);
+  }, []);
+
   useEffect(() => {
     void loadList();
-  }, [loadList]);
+    void loadActivity();
+  }, [loadList, loadActivity]);
 
   useEffect(() => {
     if (question?.title) setSheetOpen(true);
@@ -214,6 +241,7 @@ export function ChatApp({
       setError("Could not delete that problem.");
       return;
     }
+    void loadActivity();
     setLessons((current) => current.filter((lesson) => lesson.id !== id));
     if (conversationId === id) startNew();
   }
@@ -345,6 +373,7 @@ export function ChatApp({
         throw new Error("master kael returned an empty reply.");
       }
       void loadList();
+      void loadActivity();
     } catch (cause) {
       const detail = cause instanceof Error ? cause.message : "master kael could not answer.";
       if (!assistantText.trim()) {
@@ -360,7 +389,10 @@ export function ChatApp({
         } else setConversationId(priorId);
       }
       setError(detail);
-      if (nextId && assistantText.trim()) void loadList();
+      if (nextId && assistantText.trim()) {
+        void loadList();
+        void loadActivity();
+      }
     } finally {
       setSending(false);
       inputRef.current?.focus();
@@ -420,20 +452,27 @@ export function ChatApp({
           )}
         </div>
         <footer className="side-foot">
-          <div className="whoami">
-            {user.image ? (
-              <img src={user.image} alt="" referrerPolicy="no-referrer" />
-            ) : (
-              <span className="avatar">{initial}</span>
-            )}
-            <div>
-              <strong>{user.name || "Apprentice"}</strong>
-              <span>{user.email}</span>
+          <ActivityHeatmap
+            days={activity ?? EMPTY_ACTIVITY}
+            ready={activity !== null}
+            failed={activityFailed}
+          />
+          <div className="side-foot-row">
+            <div className="whoami">
+              {user.image ? (
+                <img src={user.image} alt="" referrerPolicy="no-referrer" />
+              ) : (
+                <span className="avatar">{initial}</span>
+              )}
+              <div>
+                <strong>{user.name || "Apprentice"}</strong>
+                <span>{user.email}</span>
+              </div>
             </div>
+            <form action={logout}>
+              <button type="submit">Sign out</button>
+            </form>
           </div>
-          <form action={logout}>
-            <button type="submit">Sign out</button>
-          </form>
         </footer>
       </aside>
 

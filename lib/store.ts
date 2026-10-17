@@ -140,6 +140,48 @@ export async function deleteConversation(userId: string, id: string) {
   return true;
 }
 
+export type ActivityDay = {
+  date: string;
+  count: number;
+};
+
+function timeZoneOrUtc(zone: string) {
+  try {
+    Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return zone;
+  } catch {
+    return "UTC";
+  }
+}
+
+export async function listActivity(userId: string, timeZone: string): Promise<ActivityDay[]> {
+  const zone = timeZoneOrUtc(timeZone);
+  const db = await getDb();
+  const since = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000);
+  const rows = await db
+    .collection("messages")
+    .aggregate<{ _id: string; count: number }>([
+      { $match: { userId, role: "user", createdAt: { $gte: since } } },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: "$createdAt",
+              timezone: zone,
+            },
+          },
+          count: { $sum: 1 },
+        },
+      },
+    ])
+    .toArray();
+
+  return rows
+    .filter((row) => typeof row._id === "string" && /^\d{4}-\d{2}-\d{2}$/.test(row._id))
+    .map((row) => ({ date: row._id, count: row.count }));
+}
+
 export function titleFrom(message: string) {
   const clean = message.replace(/\s+/g, " ").trim();
   if (clean.length <= 64) return clean;
