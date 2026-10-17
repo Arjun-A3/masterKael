@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SignOutButton } from "@/components/auth-pending";
 import { ActivityHeatmap } from "@/components/activity-heatmap";
 import { ConfirmModal } from "@/components/confirm-modal";
+import { Loader } from "@/components/loader";
 import { MessageBody } from "@/components/message-body";
 import { ProblemDock } from "@/components/problem-dock";
 import { STAGE_LABEL, lessonTitle, type QuestionSession } from "@/lib/question";
@@ -105,6 +107,7 @@ export function ChatApp({
   logout: () => Promise<void>;
 }) {
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [listReady, setListReady] = useState(false);
   const [activity, setActivity] = useState<ActivityDay[] | null>(null);
   const [activityFailed, setActivityFailed] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -113,6 +116,8 @@ export function ChatApp({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [opening, setOpening] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [navOpen, setNavOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -121,6 +126,7 @@ export function ChatApp({
   const [hits, setHits] = useState<LeetCodeHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const appRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -128,14 +134,18 @@ export function ChatApp({
   const pumpRef = useRef<() => void>(() => {});
 
   const loadList = useCallback(async () => {
-    const response = await fetch("/api/conversations");
-    if (response.status === 401) {
-      window.location.href = "/";
-      return;
+    try {
+      const response = await fetch("/api/conversations");
+      if (response.status === 401) {
+        window.location.href = "/";
+        return;
+      }
+      if (!response.ok) return;
+      const data = (await response.json()) as { conversations: Lesson[] };
+      setLessons(data.conversations);
+    } finally {
+      setListReady(true);
     }
-    if (!response.ok) return;
-    const data = (await response.json()) as { conversations: Lesson[] };
-    setLessons(data.conversations);
   }, []);
 
   const loadActivity = useCallback(async () => {
@@ -158,6 +168,29 @@ export function ChatApp({
     void loadList();
     void loadActivity();
   }, [loadList, loadActivity]);
+
+  useEffect(() => {
+    const root = appRef.current;
+    const viewport = window.visualViewport;
+    if (!root || !viewport) return;
+
+    const apply = () => {
+      root.style.height = `${viewport.height}px`;
+      root.style.transform = viewport.offsetTop > 0 ? `translateY(${viewport.offsetTop}px)` : "";
+      const scroller = scrollerRef.current;
+      if (scroller && stickRef.current) scroller.scrollTop = scroller.scrollHeight;
+    };
+
+    apply();
+    viewport.addEventListener("resize", apply);
+    viewport.addEventListener("scroll", apply);
+    return () => {
+      viewport.removeEventListener("resize", apply);
+      viewport.removeEventListener("scroll", apply);
+      root.style.height = "";
+      root.style.transform = "";
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -271,8 +304,9 @@ export function ChatApp({
       scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
   }
 
-  function startNew() {
-    if (sending) return;
+  const busy = sending || opening || deleting;
+
+  function resetConversation() {
     setConversationId(null);
     setMessages([]);
     setQuestion(null);
@@ -281,8 +315,13 @@ export function ChatApp({
     inputRef.current?.focus();
   }
 
+  function startNew() {
+    if (busy) return;
+    resetConversation();
+  }
+
   async function openLesson(id: string) {
-    if (sending || id === conversationId) {
+    if (busy || id === conversationId) {
       setNavOpen(false);
       return;
     }
@@ -314,21 +353,35 @@ export function ChatApp({
   }
 
   function askRemove(lesson: Lesson) {
-    if (sending) return;
+    if (busy) return;
+    setDeleteError(null);
     setPendingDelete(lesson);
   }
 
   async function removeLesson(id: string) {
-    if (sending) return;
-    setPendingDelete(null);
-    const response = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
-    if (!response.ok) {
-      setError("Could not delete that problem.");
-      return;
+    if (busy) return;
+    setDeleting(true);
+    setDeleteError(null);
+    let removedCurrent = false;
+    let holdLoader = false;
+    try {
+      const response = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+      if (response.status === 401) {
+        holdLoader = true;
+        window.location.href = "/";
+        return;
+      }
+      if (!response.ok) throw new Error("Could not delete that problem.");
+      removedCurrent = conversationId === id;
+      void loadActivity();
+      setLessons((current) => current.filter((lesson) => lesson.id !== id));
+      setPendingDelete(null);
+    } catch (cause) {
+      setDeleteError(cause instanceof Error ? cause.message : "Could not delete that problem.");
+    } finally {
+      if (!holdLoader) setDeleting(false);
     }
-    void loadActivity();
-    setLessons((current) => current.filter((lesson) => lesson.id !== id));
-    if (conversationId === id) startNew();
+    if (removedCurrent) resetConversation();
   }
 
   function chooseProblem(hit: {
@@ -337,6 +390,7 @@ export function ChatApp({
     titleSlug: string;
     difficulty?: string;
   }) {
+    if (busy) return;
     setQuery("");
     setHits([]);
     setQuestion({
@@ -359,7 +413,7 @@ export function ChatApp({
 
   async function send(text: string, titleSlug?: string) {
     const draft = text.trim();
-    if (!draft || sending) return;
+    if (!draft || busy) return;
 
     const priorId = conversationId;
     const userMessage: ChatMessage = {
@@ -485,9 +539,16 @@ export function ChatApp({
   }
 
   const initial = (user.name || user.email || "P").slice(0, 1).toUpperCase();
+  const openingTitle = lessons.find((lesson) => lesson.id === conversationId)?.title;
+  const statementLoading = Boolean(
+    sending && question?.title && !question.statement && !question.sheet?.prompt,
+  );
 
   return (
-    <div className={["app", navOpen ? "nav-open" : "", sheetOpen ? "sheet-open" : ""].filter(Boolean).join(" ")}>
+    <div
+      ref={appRef}
+      className={["app", navOpen ? "nav-open" : "", sheetOpen ? "sheet-open" : ""].filter(Boolean).join(" ")}
+    >
       <button
         type="button"
         className="scrim"
@@ -500,12 +561,14 @@ export function ChatApp({
             <span className="blade" aria-hidden="true" />
             master kael
           </a>
-          <button type="button" className="new-lesson" onClick={startNew}>
+          <button type="button" className="new-lesson" onClick={startNew} disabled={busy}>
             New problem
           </button>
         </div>
         <div className="lessons">
-          {lessons.length === 0 ? (
+          {!listReady ? (
+            <Loader label="Loading problems…" />
+          ) : lessons.length === 0 ? (
             <p className="empty-side">No problems yet.</p>
           ) : (
             groupLessons(lessons).map((group) => (
@@ -525,6 +588,7 @@ export function ChatApp({
                         type="button"
                         className="trash"
                         aria-label={`Delete ${lesson.title}`}
+                        disabled={busy}
                         onClick={() => askRemove(lesson)}
                       >
                         ×
@@ -555,13 +619,13 @@ export function ChatApp({
               </div>
             </div>
             <form action={logout}>
-              <button type="submit">Sign out</button>
+              <SignOutButton />
             </form>
           </div>
         </footer>
       </aside>
 
-      <main className="stage">
+      <main className="stage" aria-busy={busy}>
         <header className="stage-bar">
           <button
             type="button"
@@ -586,12 +650,31 @@ export function ChatApp({
                 : "master kael"}
             </h1>
           </div>
+          {question?.title ? (
+            <button
+              type="button"
+              className="sheet-toggle"
+              aria-expanded={sheetOpen}
+              aria-controls="problem-sheet"
+              onClick={() => {
+                setNavOpen(false);
+                setSheetOpen((current) => !current);
+              }}
+            >
+              {question.number || "Problem"}
+            </button>
+          ) : null}
         </header>
 
         {question && hasDossier(question) ? <QuestionDossier question={question} /> : null}
 
         <div className="log" ref={scrollerRef} onScroll={onScroll}>
-          {opening ? <p className="status">Opening the problem…</p> : null}
+          {opening ? (
+            <Loader
+              presentation="stage"
+              label={openingTitle ? `Opening ${openingTitle}…` : "Opening the problem…"}
+            />
+          ) : null}
           {!opening && messages.length === 0 ? (
             <div className="empty">
               <p className="eyebrow">One problem at a time</p>
@@ -616,11 +699,11 @@ export function ChatApp({
                   inputMode="numeric"
                   autoComplete="off"
                   placeholder="15"
-                  disabled={sending}
+                  disabled={busy}
                   onChange={(event) => setQuery(event.target.value)}
                 />
               </form>
-              {searching ? <p className="status">Searching…</p> : null}
+              {searching ? <Loader label="Searching…" /> : null}
               {searchError ? <p className="error">{searchError}</p> : null}
               {query.trim() && !searching && !searchError && hits.length === 0 ? (
                 <p className="status">No LeetCode problem matches that.</p>
@@ -632,7 +715,7 @@ export function ChatApp({
                       key={hit.titleSlug}
                       type="button"
                       onClick={() => chooseProblem(hit)}
-                      disabled={sending}
+                      disabled={busy}
                     >
                       <span>{hit.number}</span>
                       <strong>{hit.title}</strong>
@@ -647,7 +730,7 @@ export function ChatApp({
                       key={starter.titleSlug}
                       type="button"
                       onClick={() => chooseProblem(starter)}
-                      disabled={sending}
+                      disabled={busy}
                     >
                       <span>{starter.number}</span>
                       <strong>{starter.title}</strong>
@@ -675,7 +758,7 @@ export function ChatApp({
                 {message.content ? (
                   <MessageBody text={message.content} streaming={streaming} />
                 ) : streaming ? (
-                  <p className="waiting">Considering the problem…</p>
+                  <Loader label="Considering the problem…" />
                 ) : null}
               </article>
             );
@@ -703,33 +786,51 @@ export function ChatApp({
                 ? "Answer master kael, or ask for the other approaches"
                 : "Name a LeetCode problem to start"
             }
+            disabled={busy}
+            enterKeyHint="enter"
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void send(input);
-              }
+              if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+              const coarse = window.matchMedia("(pointer: coarse)").matches;
+              const narrow = window.matchMedia("(max-width: 960px)").matches;
+              if (coarse || narrow) return;
+              event.preventDefault();
+              void send(input);
             }}
           />
           <div className="composer-row">
-            <p>Enter to send · Shift+Enter for a new line</p>
-            <button type="submit" className="send" disabled={sending || !input.trim()}>
+            <p>
+              <span className="hint-keys">Enter to send · Shift+Enter for a new line</span>
+              <span className="hint-touch">Return adds a line</span>
+            </p>
+            <button type="submit" className="send" disabled={busy || !input.trim()}>
               {sending ? "Listening" : question ? "Reply" : "Start"}
             </button>
           </div>
         </form>
       </main>
-      {pendingDelete ? (
+      {pendingDelete && !deleting ? (
         <ConfirmModal
           title="Delete this problem?"
           body={`${pendingDelete.title} will leave your lessons. The conversation goes with it.`}
           confirmLabel="Delete"
-          onCancel={() => setPendingDelete(null)}
+          notice={deleteError}
+          onCancel={() => {
+            setDeleteError(null);
+            setPendingDelete(null);
+          }}
           onConfirm={() => void removeLesson(pendingDelete.id)}
+        />
+      ) : null}
+      {deleting ? (
+        <Loader
+          presentation="screen"
+          label={`Removing ${pendingDelete?.title ?? "the problem"}…`}
         />
       ) : null}
       <ProblemDock
         question={question}
+        loading={statementLoading}
         open={sheetOpen}
         onToggle={() => {
           if (!question?.title) return;

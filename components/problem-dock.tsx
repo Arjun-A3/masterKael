@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect } from "react";
+import { Loader } from "@/components/loader";
 import type { ProblemExample, ProblemSheet, QuestionSession } from "@/lib/question";
 
 export function ProblemDock({
   question,
   open,
+  loading = false,
   onToggle,
   onClose,
 }: {
   question: QuestionSession | null;
   open: boolean;
+  loading?: boolean;
   onToggle: () => void;
   onClose: () => void;
 }) {
@@ -37,7 +40,9 @@ export function ProblemDock({
         aria-label="Problem"
         aria-hidden={!open || !ready}
       >
-        {question && sheet ? <SheetBody question={question} sheet={sheet} onClose={onClose} /> : null}
+        {question && sheet ? (
+          <SheetBody question={question} sheet={sheet} loading={loading} onClose={onClose} />
+        ) : null}
       </aside>
       <button
         type="button"
@@ -57,10 +62,12 @@ export function ProblemDock({
 function SheetBody({
   question,
   sheet,
+  loading,
   onClose,
 }: {
   question: QuestionSession;
   sheet: ProblemSheet;
+  loading: boolean;
   onClose: () => void;
 }) {
   const title = question.number ? `${question.number} · ${question.title}` : question.title;
@@ -76,46 +83,56 @@ function SheetBody({
         </button>
       </header>
 
-      <section>
-        <h3>Question</h3>
-        {sheet.prompt ? <p className="sheet-copy">{sheet.prompt}</p> : <p className="sheet-empty">The statement is still loading.</p>}
-        {question.constraints.length > 0 ? (
-          <ul className="sheet-notes">
-            {question.constraints.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
+      {loading ? (
+        <Loader presentation="stage" label="Loading the statement…" />
+      ) : (
+        <>
+          <section>
+            <h3>Question</h3>
+            {sheet.prompt ? (
+              <p className="sheet-copy">{sheet.prompt}</p>
+            ) : (
+              <p className="sheet-empty">The statement is still loading.</p>
+            )}
+            {question.constraints.length > 0 ? (
+              <ul className="sheet-notes">
+                {question.constraints.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
 
-      <section>
-        <h3>Diagram</h3>
-        {sheet.images.length > 0 ? (
-          <div className="diagrams">
-            {sheet.images.map((image) => (
-              <figure key={image.src}>
-                <img src={image.src} alt={image.alt || "Diagram"} referrerPolicy="no-referrer" />
-                {image.alt && image.alt !== "Diagram" ? <figcaption>{image.alt}</figcaption> : null}
-              </figure>
-            ))}
-          </div>
-        ) : (
-          <p className="sheet-empty">No diagram with this problem.</p>
-        )}
-      </section>
+          <section>
+            <h3>Diagram</h3>
+            {sheet.images.length > 0 ? (
+              <div className="diagrams">
+                {sheet.images.map((image) => (
+                  <figure key={image.src}>
+                    <img src={image.src} alt={image.alt || "Diagram"} referrerPolicy="no-referrer" />
+                    {image.alt && image.alt !== "Diagram" ? <figcaption>{image.alt}</figcaption> : null}
+                  </figure>
+                ))}
+              </div>
+            ) : (
+              <p className="sheet-empty">No diagram with this problem.</p>
+            )}
+          </section>
 
-      <section>
-        <h3>Test cases</h3>
-        {sheet.examples.length > 0 ? (
-          <div className="cases">
-            {sheet.examples.map((example) => (
-              <ExampleCard key={`${example.label}:${example.input}`} example={example} />
-            ))}
-          </div>
-        ) : (
-          <p className="sheet-empty">No published examples for this problem.</p>
-        )}
-      </section>
+          <section>
+            <h3>Test cases</h3>
+            {sheet.examples.length > 0 ? (
+              <div className="cases">
+                {sheet.examples.map((example) => (
+                  <ExampleCard key={`${example.label}:${example.input}`} example={example} />
+                ))}
+              </div>
+            ) : (
+              <p className="sheet-empty">No published examples for this problem.</p>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }

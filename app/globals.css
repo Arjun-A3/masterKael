@@ -18,7 +18,16 @@
 
 * { box-sizing: border-box; }
 
-html, body { margin: 0; min-height: 100%; }
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 
 body {
   background:
@@ -34,7 +43,13 @@ body {
 
 button, textarea { font: inherit; color: inherit; }
 
-button { cursor: pointer; }
+button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+input, textarea {
+  font-size: 1rem;
+  -webkit-appearance: none;
+  appearance: none;
+}
 
 a { color: inherit; text-decoration: none; }
 
@@ -75,10 +90,16 @@ a { color: inherit; text-decoration: none; }
 }
 
 .landing {
-  min-height: 100dvh;
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  padding: 1.5rem clamp(1.25rem, 4vw, 4rem) 2.5rem;
+  padding:
+    max(1.5rem, env(safe-area-inset-top))
+    max(clamp(1.25rem, 4vw, 4rem), env(safe-area-inset-right))
+    max(2.5rem, env(safe-area-inset-bottom))
+    max(clamp(1.25rem, 4vw, 4rem), env(safe-area-inset-left));
 }
 
 .topbar {
@@ -186,6 +207,7 @@ a { color: inherit; text-decoration: none; }
 
 .app {
   height: 100dvh;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 18rem minmax(0, 1fr) auto;
 }
@@ -232,6 +254,20 @@ a { color: inherit; text-decoration: none; }
   border-color: var(--gold);
 }
 
+.new-lesson:disabled,
+.new-lesson:disabled:hover,
+.side-foot button:disabled,
+.side-foot button:disabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--line);
+}
+
+.new-lesson:disabled,
+.new-lesson:disabled:hover {
+  border-color: rgba(224, 177, 90, 0.28);
+}
+
 .lessons {
   flex: 1;
   min-height: 0;
@@ -269,9 +305,16 @@ a { color: inherit; text-decoration: none; }
   text-overflow: ellipsis;
 }
 
-.lesson.active, .lesson:hover {
+.lesson.active {
   background: var(--gold-dim);
   color: var(--text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lesson:hover {
+    background: var(--gold-dim);
+    color: var(--text);
+  }
 }
 
 .trash {
@@ -303,6 +346,8 @@ a { color: inherit; text-decoration: none; }
   border-top: 1px solid var(--line);
   padding-top: 0.8rem;
 }
+
+.side-foot-row form { flex: none; }
 
 .heat {
   --heat-label: 1.45rem;
@@ -340,6 +385,8 @@ a { color: inherit; text-decoration: none; }
   padding-bottom: 0.15rem;
   scrollbar-width: thin;
   scrollbar-color: rgba(224, 177, 90, 0.4) transparent;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
 }
 
 .heat-months {
@@ -489,6 +536,7 @@ a { color: inherit; text-decoration: none; }
 .stage {
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -502,6 +550,12 @@ a { color: inherit; text-decoration: none; }
 }
 
 .stage-bar > div { min-width: 0; }
+
+.stage-bar .eyebrow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .stage-bar h1 {
   margin: 0;
@@ -592,7 +646,10 @@ a { color: inherit; text-decoration: none; }
 
 .log {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 1.5rem 1.25rem 2rem;
 }
 
@@ -655,6 +712,13 @@ a { color: inherit; text-decoration: none; }
 
 .starters button:hover { border-color: rgba(224, 177, 90, 0.5); }
 
+.starters button:disabled,
+.starters button:disabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--line);
+}
+
 .starters span { grid-row: span 2; color: var(--gold); align-self: center; }
 
 .starters strong { font-weight: 600; }
@@ -685,6 +749,8 @@ a { color: inherit; text-decoration: none; }
 
 .turn.master { border-top: 1px solid transparent; }
 
+.prose { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+
 .prose p, .prose ul, .prose ol, .prose h3, .prose h4, .prose h5 { margin: 0.7rem 0; }
 
 .prose h3, .prose h4, .prose h5 {
@@ -707,6 +773,7 @@ a { color: inherit; text-decoration: none; }
 
 .code {
   margin: 0.9rem 0;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 0.8rem;
   background: var(--sunken);
@@ -791,6 +858,10 @@ a { color: inherit; text-decoration: none; }
 
 .composer-row p, .status { margin: 0; color: var(--faint); font-size: 0.82rem; }
 
+.composer-row p { min-width: 0; }
+
+.hint-touch { display: none; }
+
 .send {
   padding: 0.45rem 0.95rem;
   background: var(--gold);
@@ -803,6 +874,89 @@ a { color: inherit; text-decoration: none; }
 
 .error { margin: 0 0 0.55rem; color: var(--danger); }
 
+.loader-frame {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--muted);
+}
+
+.loader-frame p { margin: 0; }
+
+.loader-frame.inline p {
+  color: var(--faint);
+  font-size: 0.92rem;
+}
+
+.lessons > .loader-frame { padding: 0.85rem 0.45rem; }
+
+.loader-frame.stage,
+.loader-frame.screen {
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.loader-frame.stage p,
+.loader-frame.screen p {
+  max-width: 22rem;
+  font-family: var(--serif);
+  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.log:has(> .loader-frame.stage),
+.sheet-body:has(> .loader-frame.stage) {
+  display: flex;
+  flex-direction: column;
+}
+
+.log > .loader-frame.stage,
+.sheet-body > .loader-frame.stage {
+  flex: 1;
+  min-height: 12rem;
+}
+
+.loader-frame.screen {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  padding:
+    max(1.5rem, env(safe-area-inset-top))
+    max(1.5rem, env(safe-area-inset-right))
+    max(1.5rem, env(safe-area-inset-bottom))
+    max(1.5rem, env(safe-area-inset-left));
+  background:
+    radial-gradient(900px 480px at 0% -10%, rgba(224, 177, 90, 0.12), transparent 55%),
+    rgba(16, 15, 12, 0.88);
+  backdrop-filter: blur(8px);
+}
+
+.loader-spin {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid rgba(224, 177, 90, 0.28);
+  border-top-color: var(--gold);
+  box-shadow: 0 0 12px rgba(224, 177, 90, 0.28);
+  animation: loader-spin 0.7s linear infinite;
+}
+
+.loader-frame.stage .loader-spin,
+.loader-frame.screen .loader-spin {
+  width: 1.85rem;
+  height: 1.85rem;
+  border-width: 2px;
+}
+
+@keyframes loader-spin {
+  to { transform: rotate(360deg); }
+}
+
 :focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
@@ -814,7 +968,11 @@ a { color: inherit; text-decoration: none; }
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 1.25rem;
+  padding:
+    max(1.25rem, env(safe-area-inset-top))
+    max(1.25rem, env(safe-area-inset-right))
+    max(1.25rem, env(safe-area-inset-bottom))
+    max(1.25rem, env(safe-area-inset-left));
   background: rgba(0, 0, 0, 0.55);
 }
 
@@ -833,6 +991,7 @@ a { color: inherit; text-decoration: none; }
   font-size: 1.7rem;
   font-weight: 500;
   line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .modal p:not(.eyebrow) {
@@ -840,9 +999,12 @@ a { color: inherit; text-decoration: none; }
   color: var(--muted);
 }
 
+.modal p.modal-error { color: var(--danger); }
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.6rem;
   margin-top: 1.15rem;
 }
@@ -901,12 +1063,15 @@ a { color: inherit; text-decoration: none; }
   gap: 1rem;
 }
 
+.sheet-head > div { min-width: 0; }
+
 .sheet-head h2 {
   margin: 0;
   font-family: var(--serif);
   font-size: 1.45rem;
   font-weight: 500;
   line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .sheet-close {
@@ -930,6 +1095,7 @@ a { color: inherit; text-decoration: none; }
 .sheet-copy {
   margin: 0;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-size: 0.95rem;
   line-height: 1.5;
 }
@@ -1029,59 +1195,92 @@ a { color: inherit; text-decoration: none; }
   letter-spacing: 0.04em;
 }
 
-@media (max-width: 860px) {
-  .landing-grid { grid-template-columns: 1fr; align-items: start; padding-top: 10vh; }
-  .landing h1 { max-width: 12ch; }
+.sheet-toggle { display: none; }
+
+@media (hover: none) {
+  .starters button:hover:not(:disabled) { border-color: var(--line); }
+  .google:hover { background: var(--text); }
+}
+
+@media (max-width: 960px) {
+  .landing-grid { grid-template-columns: 1fr; align-items: start; padding-top: 8vh; gap: 2rem; }
+  .landing h1 { max-width: 100%; font-size: clamp(2.6rem, 12vw, 4.4rem); }
+  .google { width: 100%; justify-content: center; min-height: 3rem; }
 
   .app { grid-template-columns: 1fr; }
 
   .dock {
     position: fixed;
-    z-index: 4;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    border-left: 0;
+    z-index: 5;
+    inset: 0;
+    border: 0;
     background: transparent;
+    pointer-events: none;
   }
 
-  .rail-tab {
-    position: relative;
-    z-index: 1;
-    background: #14120f;
-  }
+  .dock.open { pointer-events: auto; }
+
+  .rail-tab { display: none; }
 
   .sheet {
-    position: absolute;
+    position: fixed;
     z-index: 1;
-    top: 0;
-    bottom: 0;
-    right: 2.8rem;
-    width: min(28rem, calc(100vw - 2.8rem));
+    inset: 0;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
     background: #14120f;
-    border-left: 1px solid var(--line);
-    transform: translateX(110%);
+    border: 0;
+    transform: translateY(105%);
     transition: transform 180ms ease;
+    pointer-events: none;
   }
 
   .dock.open .sheet {
-    width: min(28rem, calc(100vw - 2.8rem));
+    width: 100%;
+    max-width: 100%;
     transform: none;
+    pointer-events: auto;
   }
 
-  .sheet-body { width: auto; }
-
-  .sheet-open .sheet-scrim {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    border: 0;
-    padding: 0;
-    background: rgba(0, 0, 0, 0.45);
+  .sheet-body {
+    width: 100%;
+    max-width: 100%;
+    padding:
+      max(1rem, env(safe-area-inset-top))
+      max(1rem, env(safe-area-inset-right))
+      max(1.5rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
   }
 
-  .menu { display: flex; }
+  .sheet-close { min-height: 2.75rem; padding: 0.45rem 0.9rem; }
+
+  .menu {
+    display: flex;
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .sheet-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 5.5rem;
+    min-height: 2.75rem;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid rgba(224, 177, 90, 0.45);
+    border-radius: 999px;
+    background: #14120f;
+    color: var(--gold);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .sheet-toggle[aria-expanded="true"] {
+    background: var(--gold-dim);
+    color: var(--text);
+  }
 
   .scrim {
     display: block;
@@ -1103,11 +1302,78 @@ a { color: inherit; text-decoration: none; }
     transform: translateX(-105%);
     transition: transform 180ms ease;
     background: #14120f;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .nav-open .sidebar { transform: none; }
 
-  .trash { opacity: 1; }
+  .lessons { overflow: visible; flex: none; }
+
+  .lesson { padding: 0.75rem 0.45rem; }
+
+  .trash {
+    width: 2.75rem;
+    height: 2.75rem;
+    opacity: 1;
+  }
+
+  .stage-bar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.55rem;
+    padding:
+      max(0.7rem, env(safe-area-inset-top))
+      max(0.85rem, env(safe-area-inset-right))
+      0.7rem
+      max(0.7rem, env(safe-area-inset-left));
+  }
+
+  .stage-bar h1 { font-size: 1.2rem; }
+
+  .dossier {
+    width: calc(100% - 1.25rem);
+    max-height: min(9rem, 28dvh);
+    margin-top: 0.55rem;
+    padding: 0.75rem 0.85rem;
+  }
+
+  .log { padding: 1rem 0.9rem 1.1rem; }
+
+  .empty h2 { font-size: clamp(1.7rem, 8vw, 2.4rem); }
+
+  .composer {
+    width: calc(100% - 1.25rem);
+    margin-bottom: max(0.65rem, env(safe-area-inset-bottom));
+    flex: none;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  }
+
+  .composer-row { flex-wrap: wrap; }
+
+  .send { flex: none; }
+
+  .composer textarea {
+    min-height: 3.25rem;
+    max-height: 8rem;
+  }
+
+  .hint-keys { display: none; }
+  .hint-touch { display: inline; }
+
+  .send, .side-foot button, .new-lesson, .modal-cancel, .modal-confirm {
+    min-height: 2.75rem;
+  }
+
+  .copy { min-height: 2.25rem; padding: 0.35rem 0.7rem; }
+}
+
+@media (max-height: 520px) {
+  .dossier { display: none; }
+  .landing-grid { padding-top: 1.25rem; }
+  .composer textarea { min-height: 2.5rem; max-height: 4.5rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

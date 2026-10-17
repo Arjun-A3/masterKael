@@ -7,6 +7,7 @@ export function ConfirmModal({
   body,
   confirmLabel,
   cancelLabel = "Keep it",
+  notice,
   onConfirm,
   onCancel,
 }: {
@@ -14,6 +15,7 @@ export function ConfirmModal({
   body: string;
   confirmLabel: string;
   cancelLabel?: string;
+  notice?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -44,6 +46,7 @@ export function ConfirmModal({
         <p className="eyebrow">Problem</p>
         <h2 id="confirm-title">{title}</h2>
         <p id="confirm-body">{body}</p>
+        {notice ? <p className="modal-error">{notice}</p> : null}
         <div className="modal-actions">
           <button type="button" className="modal-cancel" ref={cancelRef} onClick={onCancel}>
             {cancelLabel}
